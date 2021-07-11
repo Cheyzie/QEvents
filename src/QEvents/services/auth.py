@@ -9,6 +9,7 @@ from jose.exceptions import JWTError
 from passlib.hash import bcrypt
 
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.expression import table
 
 from .. import tables
 from ..database import get_session
@@ -16,7 +17,7 @@ from ..models.auth import User, Token, UserCreate
 from ..settings import settings
 
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl='/auth/sign-in')
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl='/api/auth/sign-in')
 
 
 def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
@@ -83,7 +84,23 @@ class AuthService:
     def __init__(self, session: Session = Depends(get_session)):
         self.session = session
 
+    def get_user_by_email(self, email: str) -> User:
+        return (
+            self.session()
+            .query(tables.User)
+            .filter(tables.User.email == email)
+            .first()
+        )
+
     def register_new_user(self, user_data: UserCreate) -> Token:
+        if self.session.query(tables.User).filter(tables.User.username == user_data.username).count() > 0:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail='Username has already used.',
+                headers={
+                    'WWW_Authenticate': 'Bearer'
+                },
+            )
         user = tables.User(
             email=user_data.email,
             username=user_data.username,
