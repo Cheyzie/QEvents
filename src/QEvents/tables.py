@@ -1,11 +1,17 @@
-from os import name
-from time import time
 import sqlalchemy as sa
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.sql.functions import user
 
 
 Base = declarative_base()
 
+
+class EmailVerificationToken(Base):
+    __tablename__ = 'email_verification_tokens'
+
+    id = sa.Column(sa.Integer, primary_key=True)
+    user_id = sa.Column(sa.Integer)
+    token = sa.Column(sa.String)
 
 class Event(Base):
     __tablename__ = 'events'
@@ -28,10 +34,12 @@ class User(Base):
     email = sa.Column(sa.Text, unique=True)
     username = sa.Column(sa.Text, unique=True)
     password_hash = sa.Column(sa.Text)
+    is_active = sa.Column(sa.Boolean, default=False)
 
     events = sa.orm.relationship(
         Event, 
-        secondary='memberships'
+        secondary='memberships',
+        overlaps='members',
     )
 class Membership(Base):
     __tablename__ = 'memberships'
@@ -41,8 +49,6 @@ class Membership(Base):
     event_id = sa.Column(sa.Integer, sa.ForeignKey('events.id'))
     is_admin = sa.Column(sa.Boolean, default=False)
 
-    user = sa.orm.relationship(User, backref=sa.orm.backref('users_assoc'))
-    event = sa.orm.relationship(Event, backref=sa.orm.backref('events_assoc'))
 
 class Friendship(Base):
     __tablename__ = 'friendships'

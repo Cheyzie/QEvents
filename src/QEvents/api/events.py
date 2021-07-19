@@ -12,7 +12,7 @@ router = APIRouter(
 )
 
 @router.get('/')
-def get_public_events(service: EventsService = Depends(), user: User = Depends(get_current_user)):
+def get_public_events(service: EventsService = Depends()):
     return service.get_public_events()
 
 @router.get('/my')

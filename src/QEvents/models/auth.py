@@ -25,3 +25,10 @@ class UserDetail(User):
 class Token(BaseModel):
     access_token: str
     token_type: str = 'bearer'
+
+class BaseEmailVerificationToken(BaseModel):
+    token: str
+class EmailVerificationToken(BaseEmailVerificationToken):
+    id: int
+    user_id: int
+    
