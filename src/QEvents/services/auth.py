@@ -12,9 +12,9 @@ from sqlalchemy.orm import Session
 
 from .. import tables
 from ..database import get_session
-from ..models.auth import User, Token, UserCreate
+from ..models.auth import RefreshToken, User, Token, UserCreate
 from ..settings import settings
-from string import digits, ascii_uppercase
+from string import digits, ascii_uppercase, ascii_letters
 from random import choice
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='/api/auth/sign-in')
@@ -30,6 +30,11 @@ class AuthService:
     @classmethod
     def create_verification_token(cls, length: int = 6) -> str:
         chars = ascii_uppercase + digits
+        return ''.join(choice(chars) for _ in range(length))
+   
+    @classmethod
+    def create_random_token(cls, length: int = 6) -> str:
+        chars = ascii_letters + digits
         return ''.join(choice(chars) for _ in range(length))
    
     @classmethod
@@ -67,8 +72,8 @@ class AuthService:
         
         return user
     
-    @classmethod
-    def create_token(cls, user: tables.User) -> Token:
+    
+    def create_token(self, user: tables.User):
         user_data = User.from_orm(user)
 
         now = datetime.utcnow()
@@ -85,10 +90,33 @@ class AuthService:
             settings.jwt_algorithm
         )
 
-        return Token(access_token=token)
+        refresh_token = self.create_refresh_token(user=user_data)
+        return {'access_token': token, 'refresh_token': refresh_token}
 
     def __init__(self, session: Session = Depends(get_session)):
         self.session = session
+        
+    def create_refresh_token(self, user: User):
+        now = datetime.utcnow()
+
+        refresh_session = self.session.query(tables.refreshSession).filter(tables.refreshSession.user_id == user.id).first()
+        if not refresh_session:
+            refresh_session = tables.refreshSession(
+                user_id = user.id,
+                refresh_token = self.create_random_token(256),
+                expires_in = now + timedelta(days=settings.refresh_expiration),
+                created_at = now,
+            )
+            self.session.add(refresh_session)
+        else:
+            refresh_session.refresh_token = self.create_random_token(256)
+            refresh_session.expires_in = now + timedelta(days=settings.refresh_expiration)
+            refresh_session.created_at = now
+        
+        self.session.commit()
+        return refresh_session.refresh_token
+
+
 
     def _get_user(self, user_id: int) -> tables.User:
         return (
@@ -157,8 +185,35 @@ class AuthService:
         
         return self.create_token(user=user)
         
+    def refresh_token(self, refresh_token: RefreshToken):
+        now = datetime.utcnow()
+        token = (self.session.query(tables.refreshSession)
+        .filter(tables.refreshSession.refresh_token==refresh_token.refresh_token).first())
+        
+        if not token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail='invalid refresh token'
+            )
 
-    def authentificate_user(self, username: str, password: str) -> Token:
+        user = self.session.query(tables.User).filter(tables.User.id == token.user_id).first()
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail='invalid refresh token'
+            )
+
+        if token.expires_in < now:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail='refresh token has expired out.'
+            )
+            
+        return self.create_token(user)
+
+
+    def authentificate_user(self, username: str, password: str):
         exception = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail='Could not validate credentionals.',
@@ -179,3 +234,20 @@ class AuthService:
             raise exception
 
         return self.create_token(user=user)
+
+    def check_username_unique(self, username):
+        user = self.session.query(tables.User).filter(tables.User.username == username).first()
+
+        if not user:
+            return True
+        
+        return False
+
+    def check_email_unique(self, email):
+        user = self.session.query(tables.User).filter(tables.User.email == email).first()
+
+        if not user:
+            return True
+        
+        return False
+        

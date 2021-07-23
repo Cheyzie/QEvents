@@ -1,3 +1,4 @@
+
 from typing import List
 from pydantic import BaseModel
 
@@ -25,6 +26,9 @@ class UserDetail(User):
 class Token(BaseModel):
     access_token: str
     token_type: str = 'bearer'
+
+class RefreshToken(BaseModel):
+    refresh_token: str
 
 class BaseEmailVerificationToken(BaseModel):
     token: str

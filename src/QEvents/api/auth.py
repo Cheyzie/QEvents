@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends
 from fastapi.security import OAuth2PasswordRequestForm
 
 from ..models.auth import (
+    RefreshToken,
     UserCreate,
     User,
     Token,
@@ -27,7 +28,7 @@ def verify_email(
     service: AuthService = Depends()
 ):
     return service.verify_email(verification_token=verification_token.token)
-@router.post('/sign-in', response_model=Token)
+@router.post('/sign-in')
 def sign_in(
     form_data: OAuth2PasswordRequestForm = Depends(),
     service: AuthService = Depends(),
@@ -37,6 +38,18 @@ def sign_in(
         form_data.password
     )
 
+@router.post('/refresh')
+def refresh(token: RefreshToken, service: AuthService = Depends()):
+    return service.refresh_token(token)
+
 @router.get('/user', response_model=User)
 def get_user(user: User = Depends(get_current_user)):
     return user
+
+@router.get('/check_username_unique')
+def check_username_unique(username: str, service: AuthService = Depends()):
+    return {'is_username_unique': service.check_username_unique(username)}
+
+@router.get('/check_email_unique')
+def check_email_unique(email: str, service: AuthService = Depends()):
+    return {'is_username_unique': service.check_email_unique(email)}
