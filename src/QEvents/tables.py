@@ -22,6 +22,7 @@ class refreshSession(Base):
     id = sa.Column(sa.Integer, primary_key=True)
     user_id = sa.Column(sa.Integer, sa.ForeignKey('users.id', ondelete="CASCADE"))
     refresh_token = sa.Column(sa.String, nullable=False)
+    fingerprint = sa.Column(sa.String, nullable=False)
     expires_in = sa.Column(sa.DateTime)
     created_at = sa.Column(sa.DateTime, default=datetime.utcnow)
 

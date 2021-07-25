@@ -23,12 +23,11 @@ from .events import Event
 
 class UserDetail(User):
     events: List[Event]
-class Token(BaseModel):
-    access_token: str
-    token_type: str = 'bearer'
+
 
 class RefreshToken(BaseModel):
     refresh_token: str
+    fingerprint: str
 
 class BaseEmailVerificationToken(BaseModel):
     token: str

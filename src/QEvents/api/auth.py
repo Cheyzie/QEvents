@@ -6,7 +6,6 @@ from ..models.auth import (
     RefreshToken,
     UserCreate,
     User,
-    Token,
     BaseEmailVerificationToken
 )
 
@@ -35,7 +34,8 @@ def sign_in(
 ):
     return service.authentificate_user(
         form_data.username,
-        form_data.password
+        form_data.password,
+        form_data.client_id
     )
 
 @router.post('/refresh')

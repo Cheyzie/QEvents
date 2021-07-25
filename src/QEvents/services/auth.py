@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from .. import tables
 from ..database import get_session
-from ..models.auth import RefreshToken, User, Token, UserCreate
+from ..models.auth import RefreshToken, User, UserCreate
 from ..settings import settings
 from string import digits, ascii_uppercase, ascii_letters
 from random import choice
@@ -73,7 +73,7 @@ class AuthService:
         return user
     
     
-    def create_token(self, user: tables.User):
+    def create_token(self, user: tables.User, fingerprint: str):
         user_data = User.from_orm(user)
 
         now = datetime.utcnow()
@@ -90,20 +90,26 @@ class AuthService:
             settings.jwt_algorithm
         )
 
-        refresh_token = self.create_refresh_token(user=user_data)
+        refresh_token = self.create_refresh_token(user=user_data, fingerprint=fingerprint)
         return {'access_token': token, 'refresh_token': refresh_token}
 
     def __init__(self, session: Session = Depends(get_session)):
         self.session = session
         
-    def create_refresh_token(self, user: User):
+    def create_refresh_token(self, user: User, fingerprint: str):
         now = datetime.utcnow()
 
-        refresh_session = self.session.query(tables.refreshSession).filter(tables.refreshSession.user_id == user.id).first()
+        refresh_session = (
+            self.session.query(tables.refreshSession)
+            .filter(tables.refreshSession.user_id == user.id)
+            .filter(tables.refreshSession.fingerprint == fingerprint)
+            .first()
+        )
         if not refresh_session:
             refresh_session = tables.refreshSession(
                 user_id = user.id,
                 refresh_token = self.create_random_token(256),
+                fingerprint = fingerprint,
                 expires_in = now + timedelta(days=settings.refresh_expiration),
                 created_at = now,
             )
@@ -163,7 +169,7 @@ class AuthService:
 
         return User.from_orm(user)
 
-    def verify_email(self, verification_token: str) -> Token:
+    def verify_email(self, verification_token: str):
         exception = HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail='Not valid verification code.'
@@ -183,12 +189,16 @@ class AuthService:
         self.session.delete(token)
         self.session.commit()
         
-        return self.create_token(user=user)
+        return {'message': 'Email has verified.'}
         
     def refresh_token(self, refresh_token: RefreshToken):
         now = datetime.utcnow()
-        token = (self.session.query(tables.refreshSession)
-        .filter(tables.refreshSession.refresh_token==refresh_token.refresh_token).first())
+        token = (
+            self.session.query(tables.refreshSession)
+            .filter(tables.refreshSession.refresh_token==refresh_token.refresh_token)
+            .filter(tables.refreshSession.fingerprint==refresh_token.fingerprint)
+            .first()
+        )
         
         if not token:
             raise HTTPException(
@@ -210,10 +220,10 @@ class AuthService:
                 detail='refresh token has expired out.'
             )
             
-        return self.create_token(user)
+        return self.create_token(user, refresh_token.fingerprint)
 
 
-    def authentificate_user(self, username: str, password: str):
+    def authentificate_user(self, username: str, password: str, fingerprint: str):
         exception = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail='Could not validate credentionals.',
@@ -233,7 +243,7 @@ class AuthService:
         if not user.is_active:
             raise exception
 
-        return self.create_token(user=user)
+        return self.create_token(user=user, fingerprint=fingerprint)
 
     def check_username_unique(self, username):
         user = self.session.query(tables.User).filter(tables.User.username == username).first()
