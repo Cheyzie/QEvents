@@ -1,6 +1,7 @@
 from ..services.auth import AuthService, get_current_user
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, UploadFile, Form, File
 from fastapi.security import OAuth2PasswordRequestForm
+from typing import Optional
 
 from ..models.auth import (
     RefreshToken,
@@ -53,3 +54,12 @@ def check_username_unique(username: str, service: AuthService = Depends()):
 @router.get('/check_email_unique')
 def check_email_unique(email: str, service: AuthService = Depends()):
     return {'is_username_unique': service.check_email_unique(email)}
+
+@router.put('/user', response_model=User)
+def update_user(
+    image: Optional[UploadFile] = File(...),
+    username: Optional[str] = Form(...), 
+    user: User = Depends(get_current_user),
+    service: AuthService = Depends()
+):
+    return service.edit_user(username, image, user)

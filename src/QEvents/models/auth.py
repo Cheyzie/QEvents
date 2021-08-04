@@ -1,10 +1,11 @@
-
-from typing import List
+from fastapi import UploadFile
+from typing import List, Optional
 from pydantic import BaseModel
 
 class BaseUser(BaseModel):
     email: str
     username: str
+    
 
 class UserCreate(BaseUser):
     password: str
@@ -13,6 +14,7 @@ class UserCreate(BaseUser):
 
 class User(BaseUser):
     id: int
+    image: Optional[str]
 
     class Config:
         orm_mode = True

@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, UploadFile
 from fastapi.param_functions import Depends
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import ValidationError
@@ -7,7 +7,7 @@ from pydantic import ValidationError
 from jose import jwt
 from jose.exceptions import JWTError
 from passlib.hash import bcrypt
-
+import os
 from sqlalchemy.orm import Session
 
 from .. import tables
@@ -16,6 +16,7 @@ from ..models.auth import RefreshToken, User, UserCreate
 from ..settings import settings
 from string import digits, ascii_uppercase, ascii_letters
 from random import choice
+import uuid
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='/api/auth/sign-in')
 
@@ -260,4 +261,19 @@ class AuthService:
             return True
         
         return False
+
+
+    def edit_user(self, username: str, image: UploadFile, user: tables.User):
+        user = self.session.query(tables.User).filter(tables.User.id == user.id).first()
+        user.username = username
+        file_format = image.content_type.split('/')[1]
+        filename = f'{uuid.uuid4()}.{file_format}'
+        if os.path.exists(f'../static/img/{user.image}'):
+            os.remove(f'../static/img/{user.image}')
+        with open(f'../static/img/{filename}', 'wb+') as f_obj:
+            f_obj.write(image.file.read())
+        user.image = filename
+        self.session.commit()
+        self.session.refresh(user)
+        return user
         
