@@ -264,13 +264,14 @@ class AuthService:
 
 
     def edit_user(self, username: str, image: UploadFile, user: tables.User):
+        static_path = '../static/img/'
         user = self.session.query(tables.User).filter(tables.User.id == user.id).first()
         user.username = username
         file_format = image.content_type.split('/')[1]
         filename = f'{uuid.uuid4()}.{file_format}'
-        if os.path.exists(f'../static/img/{user.image}'):
-            os.remove(f'../static/img/{user.image}')
-        with open(f'../static/img/{filename}', 'wb+') as f_obj:
+        if os.path.exists(os.path.join(static_path,user.image)):
+            os.remove(os.path.join(static_path,user.image))
+        with open(os.path.join(static_path, filename), 'wb+') as f_obj:
             f_obj.write(image.file.read())
         user.image = filename
         self.session.commit()
