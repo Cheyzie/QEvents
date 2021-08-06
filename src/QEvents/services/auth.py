@@ -265,15 +265,20 @@ class AuthService:
 
     def edit_user(self, username: str, image: UploadFile, user: tables.User):
         static_path = '../static/img/'
+        allowed_formats = ['jpg', 'png', 'jpeg']
         user = self.session.query(tables.User).filter(tables.User.id == user.id).first()
-        user.username = username
-        file_format = image.content_type.split('/')[1]
-        filename = f'{uuid.uuid4()}.{file_format}'
-        if os.path.exists(os.path.join(static_path,user.image)):
-            os.remove(os.path.join(static_path,user.image))
-        with open(os.path.join(static_path, filename), 'wb+') as f_obj:
-            f_obj.write(image.file.read())
-        user.image = filename
+        if username:
+            user.username = username
+        if image:
+            file_format = image.content_type.split('/')[1]
+            if file_format not in allowed_formats:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='not allowed file format')
+            filename = f'{uuid.uuid4()}.{file_format}'
+            if os.path.exists(os.path.join(static_path,user.image)):
+                os.remove(os.path.join(static_path,user.image))
+            with open(os.path.join(static_path, filename), 'wb+') as f_obj:
+                f_obj.write(image.file.read())
+            user.image = filename
         self.session.commit()
         self.session.refresh(user)
         return user

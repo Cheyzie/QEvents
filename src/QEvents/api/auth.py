@@ -57,8 +57,8 @@ def check_email_unique(email: str, service: AuthService = Depends()):
 
 @router.put('/user', response_model=User)
 def update_user(
-    image: Optional[UploadFile] = File(...),
-    username: Optional[str] = Form(...), 
+    image: Optional[UploadFile] = File(None),
+    username: Optional[str] = Form(None), 
     user: User = Depends(get_current_user),
     service: AuthService = Depends()
 ):
