@@ -1,4 +1,5 @@
 from ..services.auth import AuthService, get_current_user
+
 from fastapi import APIRouter, Depends, UploadFile, Form, File
 from fastapi.security import OAuth2PasswordRequestForm
 from typing import Optional
@@ -15,11 +16,11 @@ router = APIRouter(
 )
 
 @router.post('/sign-up')
-def sign_up(
+async def sign_up(
     user_data: UserCreate,
     service: AuthService = Depends(),
 ):
-    user = service.register_new_user(user_data)
+    user = await service.register_new_user(user_data)
     return {'message': 'verify your email: {}'.format(user.email)}
 
 @router.post('/verify')

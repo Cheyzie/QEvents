@@ -39,6 +39,15 @@ class Event(Base):
         secondary='memberships'
     )
 
+class EventMedia(Base):
+    __tablename__ = 'event_medias'
+
+    id = sa.Column(sa.Integer, primary_key=True)
+    title = sa.Column(sa.String)
+    description = sa.Column(sa.Text)
+    content_type = sa.Column(sa.Enum)
+    content = sa.Column(sa.String)
+
 
 class User(Base):
     __tablename__ = 'users'

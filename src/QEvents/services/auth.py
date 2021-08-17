@@ -1,8 +1,6 @@
 from datetime import datetime, timedelta
-from fastapi import HTTPException, status, UploadFile
-from fastapi.param_functions import Depends
+from fastapi import HTTPException, status, UploadFile, Depends
 from fastapi.security import OAuth2PasswordBearer
-from pydantic import ValidationError
 
 from jose import jwt
 from jose.exceptions import JWTError
@@ -14,16 +12,13 @@ from .. import tables
 from ..database import get_session
 from ..models.auth import RefreshToken, User, UserCreate
 from ..settings import settings
+from .mailer import MailService
 from string import digits, ascii_uppercase, ascii_letters
 from random import choice
 import uuid
+from typing import Optional
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='/api/auth/sign-in')
-
-
-def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
-    return AuthService.validate_token(token)
-    
 
 
 class AuthService:
@@ -46,8 +41,8 @@ class AuthService:
     def hash_password(cls, password: str) -> str:
         return bcrypt.hash(password)
 
-    @classmethod
-    def validate_token(cls, token: str) -> User:
+    
+    def validate_token(self, token: str) -> User:
         exception = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail='Could not validate credentionals.',
@@ -64,15 +59,17 @@ class AuthService:
         except JWTError:
             raise exception from None
 
-        user_data = payload.get('user')
-
+        user_id = payload.get('user')
         try:
-            user = User.parse_obj(user_data)
-        except ValidationError:
+            user = self._get_user(user_id)
+        except:
             raise exception from None
         
-        return user
+        return User.from_orm(user)
     
+    def __init__(self, session: Session = Depends(get_session), mail_service: MailService = Depends()):
+        self.session = session
+        self.mail_service = mail_service
     
     def create_token(self, user: tables.User, fingerprint: str):
         user_data = User.from_orm(user)
@@ -83,7 +80,7 @@ class AuthService:
             'nbf': now,
             'exp': now + timedelta(seconds=settings.jwt_expiration),
             'sub': str(user_data.id),
-            'user': user_data.dict(),
+            'user': user_data.id,
         }
         token = jwt.encode(
             payload,
@@ -94,9 +91,6 @@ class AuthService:
         refresh_token = self.create_refresh_token(user=user_data, fingerprint=fingerprint)
         return {'access_token': token, 'refresh_token': refresh_token}
 
-    def __init__(self, session: Session = Depends(get_session)):
-        self.session = session
-        
     def create_refresh_token(self, user: User, fingerprint: str):
         now = datetime.utcnow()
 
@@ -141,7 +135,7 @@ class AuthService:
             .first()
         )
 
-    def register_new_user(self, user_data: UserCreate) -> User:
+    async def register_new_user(self, user_data: UserCreate) -> User:
         if self.session.query(tables.User).filter(tables.User.username == user_data.username).count() > 0\
             or self.session.query(tables.User).filter(tables.User.email == user_data.email).count() > 0:
             raise HTTPException(
@@ -156,7 +150,6 @@ class AuthService:
             username=user_data.username,
             password_hash=self.hash_password(user_data.password),
         )
-        
         self.session.add(user)
         self.session.commit()
         self.session.refresh(user)
@@ -164,8 +157,13 @@ class AuthService:
             user_id = user.id,
             token = self.create_verification_token()
         )
+
+        await self.mail_service.send_email_verification_message([user.email], user.username, email_verification_token.token)
+        
+        self.session.delete(user)
+
         print(email_verification_token.token)
-        self.session.add(email_verification_token)
+        # self.session.add(email_verification_token)
         self.session.commit()
 
         return User.from_orm(user)
@@ -263,12 +261,14 @@ class AuthService:
         return False
 
 
-    def edit_user(self, username: str, image: UploadFile, user: tables.User):
+    def edit_user(self, username: Optional[str], image: Optional[UploadFile], user: User):
         static_path = '../static/img/'
         allowed_formats = ['jpg', 'png', 'jpeg']
         user = self.session.query(tables.User).filter(tables.User.id == user.id).first()
+        print(username)
         if username:
             user.username = username
+        print(image)
         if image:
             file_format = image.content_type.split('/')[1]
             if file_format not in allowed_formats:
@@ -283,3 +283,5 @@ class AuthService:
         self.session.refresh(user)
         return user
         
+def get_current_user(token: str = Depends(oauth2_scheme), service: AuthService = Depends()) -> User:
+    return service.validate_token(token)

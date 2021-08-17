@@ -11,6 +11,12 @@ class Settings(BaseSettings):
     jwt_expiration: int = 3600
     refresh_expiration: int = 7
 
+    mail_username: str
+    mail_password: str
+    mail_from: str
+    mail_port: int
+    mail_server: str
+
 settings = Settings(
     _env_file='.env',
     _env_file_encoding='utf-8',
